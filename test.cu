@@ -2,7 +2,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-__global__ void forward_kernel(const float* Q,const float* K,const float* V,const int N,const int d,const int Tc,const int Tr, const int Bc,const int Br,const float scale,float* l,float* m,float* O){
+__global__ void forward_kernel_basic(const float* Q,const float* K,const float* V,const int N,const int d,const int Tc,const int Tr, const int Bc,const int Br,const float scale,float* l,float* m,float* O){
     int tid = threadIdx.x;
     int bid_x = blockIdx.x;
     int bid_y = blockIdx.y;
@@ -72,6 +72,42 @@ __global__ void forward_kernel(const float* Q,const float* K,const float* V,cons
 
 }
 
+template <int Br, int Bc, int d>
+__global__ void forward_kernel(
+    const float* Q, const float* K, const float* V, 
+    const int N, const int d, const int Tc, const int Tr, 
+    const int Bc, const int Br,const int batch_stride, const float scale, 
+    float* l, float* m, float* O) {
+    
+    int tid_x = threadIdx.x;
+    int tid_y = threadIdx.y;
+    int batch_offset = blockIdx.x * batch_stride; // Batch-specific offset
+
+    __shared__ float Qi[Br][d]; 
+    __shared__ float Kj[Br][Bc];
+    __shared__ float Vj[Br][d];
+
+    __shared__ float Si[Br][Bc];
+
+    const int num_tiles = d/Bc; 
+
+    float Oi[num_tiles];
+    float li = 0.0f;
+    float mi = - INFINITY;
+    for(int x = 0;x<num_tiles;x++){
+        Oi[x] = 0;
+        Qi[tid_y][x*Bc + tid_x] = Q[batch_offset + (blockIdx.y * Br + tid_y)*d +(x*Bc + tid_x)];
+    }
+    __syncthreads();
+
+    for(int j=0;j<Tc;j++){
+        
+    }
+
+
+
+}
+
 torch::Tensor forward(torch::Tensor Q,torch::Tensor K, torch::Tensor V){
     const int Bc = 32;
     const int Br = 32;
@@ -101,7 +137,7 @@ torch::Tensor forward(torch::Tensor Q,torch::Tensor K, torch::Tensor V){
     dim3 grid_dim(B,nh);
     dim3 block_dim(Bc);
 
-    forward_kernel<<<grid_dim,block_dim,sram_size>>>(Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+    forward_kernel_basic<<<grid_dim,block_dim,sram_size>>>(Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
         N, d, Tc, Tr, Bc, Br, scale,
         l.data_ptr<float>(), m.data_ptr<float>(), O.data_ptr<float>());
 
