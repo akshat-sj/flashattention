@@ -100,6 +100,6 @@ void forward(float* Q, float* K, float* V, float* O, int B, int nh, int N, int d
     dim3 grid_dim(B, nh);
     dim3 block_dim(Bc);
 
-    forward_kernel_optimized<<<grid_dim, block_dim, sram_size>>>(Q, K, V, N, d, Tc, Tr, Bc, Br, scale, O);
+    forward_kernel_v1<<<grid_dim, block_dim, sram_size>>>(Q, K, V, N, d, Tc, Tr, Bc, Br, scale, O);
     cudaDeviceSynchronize();
 }
