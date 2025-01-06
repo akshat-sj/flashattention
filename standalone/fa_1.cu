@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
+
 #define CUDA_CHECK(call)                                                          \
     do {                                                                          \
         cudaError_t err = call;                                                   \
@@ -82,6 +83,10 @@ __global__ void forward_kernel_v1(const float* Q,const float* K,const float* V,c
 
 }
 
+__global__ void backward_kernel_v1(){
+    
+}
+
 
 void forward(float* Q, float* K, float* V, float* O, int B, int nh, int N, int d) {
     const int Bc = 32;
@@ -100,6 +105,70 @@ void forward(float* Q, float* K, float* V, float* O, int B, int nh, int N, int d
     dim3 grid_dim(B, nh);
     dim3 block_dim(Bc);
 
-    forward_kernel_v1<<<grid_dim, block_dim, sram_size>>>(Q, K, V, N, d, Tc, Tr, Bc, Br, scale, O);
+    float* l;
+    float* m;
+    float* o;
+
+    CUDA_CHECK(cudaMalloc(&l,B*nh*Tr * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&m,B*nh*Tr * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&o,B*nh*N*d * sizeof(float)));
+    CUDA_CHECK(cudaMemset(l, 0, B * nh * Tr * sizeof(float)));
+    CUDA_CHECK(cudaMemset(m, -INFINITY, B * nh * Tr * sizeof(float))); 
+
+    forward_kernel_v1<<<grid_dim, block_dim, sram_size>>>(Q, K, V, N, d, Tc, Tr, Bc, Br, scale,l,m ,o);
+    const int output_size = B * nh * N * d;
+    float* o_host = new float[output_size];
+
+    CUDA_CHECK(cudaMemcpy(o_host, o, B * nh * N * d * sizeof(float), cudaMemcpyDeviceToHost));
+
     cudaDeviceSynchronize();
+    cudaFree(l);
+    cudaFree(m);
+    cudaFree(o);
+}
+int main() {
+    const int batch_size = 8;
+    const int n_head = 16;
+    const int seq_len = 1024;
+    const int head_embd = 32;
+
+    const int qkv_size = batch_size * n_head * seq_len * head_embd;
+    const int o_size = batch_size * n_head * seq_len * head_embd;
+
+    float* Q_host = new float[qkv_size];
+    float* K_host = new float[qkv_size];
+    float* V_host = new float[qkv_size];
+    float* O_host = new float[o_size];
+
+    for (int i = 0; i < qkv_size; ++i) {
+        Q_host[i] = static_cast<float>(i % 100); 
+        K_host[i] = static_cast<float>(i % 100);
+        V_host[i] = static_cast<float>(i % 100);
+    }
+
+    float *Q, *K, *V, *O;
+    cudaMalloc(&Q, qkv_size * sizeof(float));
+    cudaMalloc(&K, qkv_size * sizeof(float));
+    cudaMalloc(&V, qkv_size * sizeof(float));
+    cudaMalloc(&O, o_size * sizeof(float));
+
+    cudaMemcpy(Q, Q_host, qkv_size * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(K, K_host, qkv_size * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(V, V_host, qkv_size * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemset(O, 0, o_size * sizeof(float)); 
+
+    cudaDeviceSynchronize();
+    forward(Q, K, V, O, batch_size, n_head, seq_len, head_embd);
+
+    delete[] Q_host;
+    delete[] K_host;
+    delete[] V_host;
+    delete[] O_host;
+
+    cudaFree(Q);
+    cudaFree(K);
+    cudaFree(V);
+    cudaFree(O);
+
+    return 0;
 }
