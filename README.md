@@ -3,7 +3,7 @@
 Flash Attention is a high-performance mechanism designed to accelerate the attention mechanism in transformers by reducing memory overhead and computation costs. This repository contains my attempts at implementing  flash attention in raw cuda.
 
 ### Executing program
-run flash attention kernel with comparison to pytorch 
+run flash attention kernel to benchmark with pytorch's implementation and normal attention
 ```console
 python bench.py
 ```
@@ -11,7 +11,12 @@ run standalone version in standalone folder
 ```console
 nvcc fa_1.cu
 ```
-### Performance 
+### Benchmarks
+These benchmarks were run on a GTX 1650ti with parameters - Batch Size=8, Heads=16, Head Dimensions=32, Sequence Length=1024
+- naive flash attention v1 implementation - 11.204ms
+- naive flash attention v2 implementation - 10.934ms
+- optimized flash attention implementation - 6.172ms
+- pytorch flash attention implementation - 15.842ms
 
 
 ### To-do
